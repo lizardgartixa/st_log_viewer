@@ -5,6 +5,8 @@ import pandas as pd
 import base64
 import io
 from datetime import datetime
+import webbrowser
+from threading import Timer
 
 # Initialize the Dash app
 app = dash.Dash(__name__)
@@ -163,12 +165,13 @@ def update_output(contents, filename):
      Output('x-field', 'value'),
      Output('time-range-slider', 'min'),
      Output('time-range-slider', 'max'),
+     Output('time-range-slider', 'value'),
      Output('time-range-slider', 'marks')],
     [Input('stored-data', 'data')]
 )
 def update_dropdowns(data):
     if data is None:
-        return [], [], [], None, 0, 100, {}
+        return [], [], [], None, 0, 100, [0, 100], {}
     
     df = pd.DataFrame(data)
     columns = df.columns.tolist()
@@ -179,17 +182,19 @@ def update_dropdowns(data):
     # Set default X-axis to Time if available
     default_x = 'Time' if 'Time' in columns else columns[0] if columns else None
     
-    # Setup time range slider
+    # Setup time range slider - ALWAYS reset to full range when new data is loaded
     if default_x and default_x in df.columns:
         x_min, x_max = 0, len(df) - 1
+        # Reset value to full range
+        slider_value = [0, len(df) - 1]
         marks = {
             0: str(df[default_x].iloc[0]) if len(df) > 0 else '0',
             len(df) - 1: str(df[default_x].iloc[-1]) if len(df) > 0 else str(len(df))
         }
     else:
-        x_min, x_max, marks = 0, 100, {0: '0', 100: '100'}
+        x_min, x_max, slider_value, marks = 0, 100, [0, 100], {0: '0', 100: '100'}
     
-    return options, options, options, default_x, x_min, x_max, marks
+    return options, options, options, default_x, x_min, x_max, slider_value, marks
 
 @app.callback(
     Output('ecu-graph', 'figure'),
@@ -335,5 +340,11 @@ def update_data_summary(data, selected_fields, time_range):
     
     return html.Table(table_rows, style={'width': '100%', 'border': '1px solid black'})
 
+def open_browser():
+    """Open browser after a short delay to ensure server is running"""
+    webbrowser.open_new("http://127.0.0.1:8050/")
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Set a timer to open browser after 0.5 seconds
+    Timer(0.5, open_browser).start()
+    app.run(debug=True, use_reloader=False)
